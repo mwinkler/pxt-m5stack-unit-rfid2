@@ -167,7 +167,7 @@ namespace m5rfid {
      * Call this once before reading cards.
      * @returns nothing
      */
-    //% block="init RFID"
+    //% blockId="m5rfid_init" block="init RFID"
     export function init() {
         addr = DEFAULT_ADDR & 0x7F;
         _init();
@@ -178,7 +178,7 @@ namespace m5rfid {
      * Uses the REQA 7-bit request.
      * @returns true if a card responded, false otherwise
      */
-    //% block="is new RFID card present"
+    //% blockId="m5rfid_is_new_card_present" block="is new RFID card present"
     export function isNewCardPresent(): boolean {
         const res = transceiveData([PICC_CMD_REQA], 7);
         return res.status && (res.back.length > 0);
@@ -190,7 +190,7 @@ namespace m5rfid {
      * Note: currently supports 4-byte UIDs (MIFARE Classic style).
      * @returns true if the UID was read successfully, false otherwise
      */
-    //% block="read RFID UID"
+    //% blockId="m5rfid_read_uid" block="read RFID UID"
     export function readCardSerial(): boolean {
         uidBytes = [];
         uidSize = 0;
@@ -229,7 +229,7 @@ namespace m5rfid {
      * Example: "DE AD BE EF"
      * @returns UID string or empty string if no UID is available
      */
-    //% block="UID (hex)"
+    //% blockId="m5rfid_uid_hex" block="RFID UID (hex)"
     export function uidHex(): string {
         if (!uidBytes || uidBytes.length === 0) return "";
         let s = "";
@@ -247,7 +247,7 @@ namespace m5rfid {
      * Limited mapping: Mini, 1K, 4K, Ultralight; otherwise "Unknown".
      * @returns card type name string
      */
-    //% block="type name"
+    //% blockId="m5rfid_type_name" block="type name" advanced=true
     export function typeName(): string {
         const t = piccTypeFromSAK(sak);
         switch (t) {
