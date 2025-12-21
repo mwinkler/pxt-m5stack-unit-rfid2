@@ -1,0 +1,14 @@
+{
+    "name": "m5stack-unit-rfid2",
+    "version": "1.0.0",
+    "description": "M5Stack RFID 2 Unit (WS1850S)",
+    "license": "MIT",
+    "dependencies": {
+        "core": "*"
+    },
+    "files": [
+        "README.md",
+        "main.ts"
+    ],
+    "public": true
+}
