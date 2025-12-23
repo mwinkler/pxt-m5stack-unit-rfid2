@@ -1,4 +1,4 @@
-# M5Stack Unit RFID2 MakeCode Extension
+# M5Stack Unit RFID2 MakeCode Extension (Work in progress)
 
 Minimal MFRC522 (I2C) driver to read a card UID with namespace `m5rfid`.
 
