@@ -226,9 +226,12 @@ namespace m5rfid {
             }
 
             let u = r.back;
-            let cl_uid = u.slice(0, 4);
-            let bcc = cl_uid[0] ^ cl_uid[1] ^ cl_uid[2] ^ cl_uid[3];
-            if (u[4] !== bcc) {
+            let cl_uid: number[] = [];
+            for (let i = 0; i < 4; i++) {
+                cl_uid.push(u[i] & 0xFF);
+            }
+            let bcc = (cl_uid[0] ^ cl_uid[1] ^ cl_uid[2] ^ cl_uid[3]) & 0xFF;
+            if ((u[4] & 0xFF) !== bcc) {
                 return false;
             }
 
@@ -252,20 +255,17 @@ namespace m5rfid {
                 return false;
             }
 
-            sak = r2.back[0];
+            sak = r2.back[0] & 0xFF;
 
-            // Check if this is a cascade tag (0x88)
-            if (cl_uid[0] === 0x88) {
-                // Add bytes 1-3 and continue to next level
-                uidBytes.push(cl_uid[1]);
-                uidBytes.push(cl_uid[2]);
-                uidBytes.push(cl_uid[3]);
-            } else {
-                // Add all 4 bytes
-                uidBytes.push(cl_uid[0]);
-                uidBytes.push(cl_uid[1]);
-                uidBytes.push(cl_uid[2]);
-                uidBytes.push(cl_uid[3]);
+            // Add UID bytes from this cascade level to the array
+            // Skip cascade tag (0x88) if present, otherwise add all 4 bytes
+            for (let i = 0; i < 4; i++) {
+                let byte = cl_uid[i] & 0xFF;
+                // Skip the first byte if it's a cascade tag (0x88) at CL1 or CL2
+                if (i === 0 && byte === 0x88 && cascadeLevel < 3) {
+                    continue; // Skip cascade tag byte
+                }
+                uidBytes.push(byte);
             }
 
             // Check cascade bit in SAK (bit 2) - if not set, UID is complete
@@ -280,7 +280,7 @@ namespace m5rfid {
     }
 
     /**
-     * Get the last read UID as a space-separated uppercase hex string.
+     * Get the last read UID as a colon-separated uppercase hex string.
      * Example: "DE AD BE EF"
      * @returns UID string or empty string if no UID is available
      */
