@@ -110,6 +110,10 @@ namespace m5rfid {
     }
 
     function transceiveData(send: number[], txLastBits: number = 0): { back: number[], validBits: number, status: boolean } {
+        // Clear pending IRQ flags to avoid stale signals from previous commands
+        writeReg(ComIrqReg, 0x7F);
+        writeReg(CommandReg, PCD_Idle);
+
         flushFIFO();
         writeFIFO(send);
         writeReg(BitFramingReg, (txLastBits & 0x07));
@@ -122,6 +126,9 @@ namespace m5rfid {
             const n = readReg(ComIrqReg);
             if (n & 0x30) { // RxIRq or IdleIRq
                 status = true;
+                break;
+            }
+            if (n & 0x01) { // TimerIRq
                 break;
             }
         }
@@ -197,7 +204,9 @@ namespace m5rfid {
 
         // Anticollision CL1: send [SEL, 0x20]
         let r = transceiveData([PICC_CMD_SEL_CL1, 0x20]);
-        if (!r.status || r.back.length < 5) return false;
+        if (!r.status || r.back.length < 5) {
+            return false;
+        }
 
         // First 4 bytes are UID, then BCC
         const u = r.back;
@@ -217,7 +226,9 @@ namespace m5rfid {
         const crc = calculateCRC(sel);
         const cmd = sel.concat(crc);
         const r2 = transceiveData(cmd);
-        if (!r2.status || r2.back.length < 3) return false;
+        if (!r2.status || r2.back.length < 3) {
+            return false;
+        }
 
         // SAK + CRC_A
         sak = r2.back[0];
@@ -237,9 +248,18 @@ namespace m5rfid {
             const v = uidBytes[i] & 0xFF;
             const h = hexByte(v);
             s += h;
-            if (i < uidBytes.length - 1) s += " ";
+            if (i < uidBytes.length - 1) s += ":";
         }
         return s;
+    }
+
+    /**
+     * Get the last read UID as an array of bytes.
+     * @returns UID byte array
+     */
+    //% blockId="m5rfid_uid_bytes" block="RFID UID bytes" advanced=true
+    export function getUidBytes(): number[] {
+        return uidBytes.slice(0, uidSize);
     }
 
     /**
