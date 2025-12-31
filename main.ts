@@ -192,47 +192,91 @@ namespace m5rfid {
     }
 
     /**
-     * Read the card UID via anticollision and select (cascade level 1).
+     * Read the card UID via anticollision and select.
      * Stores the UID and SAK internally for later retrieval.
-     * Note: currently supports 4-byte UIDs (MIFARE Classic style).
+     * Supports both 4-byte UIDs (MIFARE) and 7-byte UIDs (NTAG).
      * @returns true if the UID was read successfully, false otherwise
      */
     //% blockId="m5rfid_read_uid" block="read RFID UID"
-    export function readCardSerial(): boolean {
+    export function readUid(): boolean {
         uidBytes = [];
         uidSize = 0;
+        sak = 0;
 
-        // Anticollision CL1: send [SEL, 0x20]
-        let r = transceiveData([PICC_CMD_SEL_CL1, 0x20]);
-        if (!r.status || r.back.length < 5) {
-            return false;
+        let cascadeLevel = 0;
+        let uidComplete = false;
+
+        while (!uidComplete && cascadeLevel < 3) {
+            cascadeLevel++;
+            let cmd: number[] = [];
+
+            // Select cascade level command
+            if (cascadeLevel === 1) {
+                cmd = [PICC_CMD_SEL_CL1, 0x20];
+            } else if (cascadeLevel === 2) {
+                cmd = [PICC_CMD_SEL_CL2, 0x20];
+            } else if (cascadeLevel === 3) {
+                cmd = [PICC_CMD_SEL_CL3, 0x20];
+            }
+
+            // Anticollision
+            let r = transceiveData(cmd);
+            if (!r.status || r.back.length < 5) {
+                return false;
+            }
+
+            let u = r.back;
+            let cl_uid = u.slice(0, 4);
+            let bcc = cl_uid[0] ^ cl_uid[1] ^ cl_uid[2] ^ cl_uid[3];
+            if (u[4] !== bcc) {
+                return false;
+            }
+
+            // SELECT command
+            let sel_cmd: number[] = [];
+            if (cascadeLevel === 1) {
+                sel_cmd = [PICC_CMD_SEL_CL1, 0x70];
+            } else if (cascadeLevel === 2) {
+                sel_cmd = [PICC_CMD_SEL_CL2, 0x70];
+            } else if (cascadeLevel === 3) {
+                sel_cmd = [PICC_CMD_SEL_CL3, 0x70];
+            }
+
+            sel_cmd = sel_cmd.concat(cl_uid);
+            sel_cmd.push(bcc);
+            let crc = calculateCRC(sel_cmd);
+            let full_cmd = sel_cmd.concat(crc);
+
+            let r2 = transceiveData(full_cmd);
+            if (!r2.status || r2.back.length < 1) {
+                return false;
+            }
+
+            sak = r2.back[0];
+
+            // Check if this is a cascade tag (0x88)
+            if (cl_uid[0] === 0x88) {
+                // Add bytes 1-3 and continue to next level
+                uidBytes.push(cl_uid[1]);
+                uidBytes.push(cl_uid[2]);
+                uidBytes.push(cl_uid[3]);
+            } else {
+                // Add all 4 bytes
+                uidBytes.push(cl_uid[0]);
+                uidBytes.push(cl_uid[1]);
+                uidBytes.push(cl_uid[2]);
+                uidBytes.push(cl_uid[3]);
+            }
+
+            // Check cascade bit in SAK (bit 2) - if not set, UID is complete
+            if ((sak & 0x04) === 0) {
+                uidComplete = true;
+            }
         }
 
-        // First 4 bytes are UID, then BCC
-        const u = r.back;
-        const uidPart = u.slice(0, 4);
-        let bcc = uidPart[0] ^ uidPart[1] ^ uidPart[2] ^ uidPart[3];
-        if (u[4] !== bcc) {
-            // invalid BCC
-            return false;
-        }
-
-        uidBytes = uidPart;
-        uidSize = 4;
-
-        // SELECT: [SEL, 0x70, UID0..3, BCC, CRC_A]
-        const sel = [PICC_CMD_SEL_CL1, 0x70].concat(uidBytes);
-        sel.push(bcc);
-        const crc = calculateCRC(sel);
-        const cmd = sel.concat(crc);
-        const r2 = transceiveData(cmd);
-        if (!r2.status || r2.back.length < 3) {
-            return false;
-        }
-
-        // SAK + CRC_A
-        sak = r2.back[0];
-        return true;
+        uidSize = uidBytes.length;
+        
+        return uidSize > 0;
     }
 
     /**
@@ -241,7 +285,7 @@ namespace m5rfid {
      * @returns UID string or empty string if no UID is available
      */
     //% blockId="m5rfid_uid_hex" block="RFID UID (hex)"
-    export function uidHex(): string {
+    export function getUidHex(): string {
         if (!uidBytes || uidBytes.length === 0) return "";
         let s = "";
         for (let i = 0; i < uidBytes.length; i++) {
@@ -264,30 +308,23 @@ namespace m5rfid {
 
     /**
      * Get a human-readable card type name from the last read SAK.
-     * Limited mapping: Mini, 1K, 4K, Ultralight; otherwise "Unknown".
+     * Supports MIFARE and NTAG types.
      * @returns card type name string
      */
     //% blockId="m5rfid_type_name" block="type name" advanced=true
     export function typeName(): string {
-        const t = piccTypeFromSAK(sak);
-        switch (t) {
+        switch (sak) {
             case 0x01: return "MIFARE Ultralight";
             case 0x08: return "MIFARE 1K";
             case 0x18: return "MIFARE 4K";
             case 0x09: return "MIFARE Mini";
+            case 0x00:
+                // SAK 0x00 typically indicates NTAG or Type 2 tag
+                if (uidSize === 7) {
+                    return "NTAG (7-byte UID)";
+                }
+                return "Type 2 Tag";
             default: return "Unknown";
-        }
-    }
-
-    function piccTypeFromSAK(s: number): number {
-        // Minimal mapping based on common SAK values
-        switch (s) {
-            case 0x09: return 0x09; // Mini
-            case 0x08: return 0x08; // 1K
-            case 0x18: return 0x18; // 4K
-            case 0x00: return 0x00; // Unknown
-            case 0x01: return 0x01; // Ultralight
-            default: return 0x00;
         }
     }
 }
