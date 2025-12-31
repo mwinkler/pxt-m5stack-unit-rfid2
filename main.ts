@@ -23,6 +23,7 @@ namespace m5rfid {
     const TReloadRegL = 0x2D;
     const CRCResultRegH = 0x21;
     const CRCResultRegL = 0x22;
+    const RFCfgReg = 0x26;
     const VersionReg = 0x37;
 
     // Commands
@@ -281,7 +282,7 @@ namespace m5rfid {
 
     /**
      * Get the last read UID as a colon-separated uppercase hex string.
-     * Example: "DE AD BE EF"
+     * Example: "DE:AD:BE:EF"
      * @returns UID string or empty string if no UID is available
      */
     //% blockId="m5rfid_uid_hex" block="RFID UID (hex)"
@@ -289,8 +290,7 @@ namespace m5rfid {
         if (!uidBytes || uidBytes.length === 0) return "";
         let s = "";
         for (let i = 0; i < uidBytes.length; i++) {
-            const v = uidBytes[i] & 0xFF;
-            const h = hexByte(v);
+            const h = hexByte(uidBytes[i]);
             s += h;
             if (i < uidBytes.length - 1) s += ":";
         }
@@ -325,6 +325,34 @@ namespace m5rfid {
                 }
                 return "Type 2 Tag";
             default: return "Unknown";
+        }
+    }
+
+    /**
+     * Get the current MFRC522 receiver gain (RxGain).
+     * Returns the 3-bit gain value (0-7) corresponding to gain settings from 18dB to 48dB.
+     * See MFRC522 datasheet section 9.3.3.6 for gain values.
+     * @returns gain value (0-7)
+     */
+    //% blockId="m5rfid_get_antenna_gain" block="get antenna gain" advanced=true
+    export function getAntennaGain(): number {
+        return (readReg(RFCfgReg) >> 4) & 0x07;
+    }
+
+    /**
+     * Set the MFRC522 receiver gain (RxGain).
+     * Valid gain values are 0-7, corresponding to gain settings from 18dB to 48dB:
+     * 0 = 18dB, 1 = 23dB, 2 = 18dB, 3 = 23dB, 4 = 33dB, 5 = 38dB, 6 = 43dB, 7 = 48dB (max)
+     * @param gain the gain value (0-7)
+     */
+    //% blockId="m5rfid_set_antenna_gain" block="set antenna gain to %gain" advanced=true
+    //% gain.min=0 gain.max=7 gain.defl=4
+    export function setAntennaGain(gain: number) {
+        gain = Math.max(0, Math.min(7, gain)); // Clamp to 0-7
+        const mask = (gain & 0x07) << 4;
+        if (getAntennaGain() !== (gain & 0x07)) {
+            clearBitMask(RFCfgReg, 0x70); // Clear RxGain bits (bits 6:4)
+            setBitMask(RFCfgReg, mask);   // Set new gain value
         }
     }
 }
