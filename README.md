@@ -68,6 +68,7 @@ The antenna gain can be adjusted to improve reading performance at different dis
 - This driver supports 4-byte UIDs (MIFARE Classic) and 7-byte UIDs (NTAG).
 - Implements proper cascade level handling for multi-level UIDs.
 - I2C address defaults to `0x28` per M5Stack Unit RFID2.
+- No external dependencies - uses only built-in MakeCode APIs.
 
 ## Credits
 
