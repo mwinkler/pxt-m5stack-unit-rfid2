@@ -188,7 +188,7 @@ namespace m5rfid {
      * Uses the REQA 7-bit request.
      * @returns true if a card responded, false otherwise
      */
-    //% blockId="m5rfid_is_new_card_present" block="is new RFID card present"
+    //% blockId="m5rfid_is_new_card_present" block="is new RFID card present" advanced=true
     export function isNewCardPresent(): boolean {
         const res = transceiveData([PICC_CMD_REQA], 7);
         return res.status && (res.back.length > 0);
@@ -200,7 +200,7 @@ namespace m5rfid {
      * Supports both 4-byte UIDs (MIFARE) and 7-byte UIDs (NTAG).
      * @returns true if the UID was read successfully, false otherwise
      */
-    //% blockId="m5rfid_read_uid" block="read RFID UID"
+    //% blockId="m5rfid_read_uid" block="read RFID UID" advanced=true
     export function readUid(): boolean {
         uidBytes = [];
         uidSize = 0;
@@ -287,7 +287,7 @@ namespace m5rfid {
      * Example: "DE:AD:BE:EF"
      * @returns UID string or empty string if no UID is available
      */
-    //% blockId="m5rfid_uid_hex" block="RFID UID (hex)"
+    //% blockId="m5rfid_uid_hex" block="RFID UID (hex)" advanced=true
     export function getUidHex(): string {
         if (!uidBytes || uidBytes.length === 0) return "";
         let s = "";
@@ -313,7 +313,7 @@ namespace m5rfid {
      * Supports MIFARE and NTAG types.
      * @returns card type name string
      */
-    //% blockId="m5rfid_type_name" block="type name" advanced=true
+    //% blockId="m5rfid_type_name" block="RFID type name" advanced=true
     export function typeName(): string {
         switch (sak) {
             case 0x01: return "MIFARE Ultralight";
