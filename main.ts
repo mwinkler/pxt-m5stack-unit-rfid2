@@ -43,6 +43,8 @@ namespace m5rfid {
     let uidBytes: number[] = [];
     let uidSize = 0;
     let sak = 0;
+    let tagDetectedHandlers: ((uid: string) => void)[] = [];
+    let scanning = false;
 
     const HEX = ["0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F"];
 
@@ -353,6 +355,35 @@ namespace m5rfid {
         if (getAntennaGain() !== (gain & 0x07)) {
             clearBitMask(RFCfgReg, 0x70); // Clear RxGain bits (bits 6:4)
             setBitMask(RFCfgReg, mask);   // Set new gain value
+        }
+    }
+
+    /**
+     * Register code to run when an RFID tag is detected.
+     * Starts background scanning if not already active.
+     * Multiple handlers can be registered and will all be called when a tag is detected.
+     * @param handler the callback function that receives the UID as a hex string
+     */
+    //% blockId="m5rfid_on_tag_detected" block="on RFID tag detected"
+    //% draggableParameters="reporter"
+    //% weight=100
+    export function onTagDetected(handler: (uid: string) => void) {
+        tagDetectedHandlers.push(handler);
+        if (!scanning) {
+            scanning = true;
+            control.inBackground(() => {
+                while (scanning) {
+                    if (isNewCardPresent() && readUid()) {
+                        const uid = getUidHex();
+                        for (let i = 0; i < tagDetectedHandlers.length; i++) {
+                            tagDetectedHandlers[i](uid);
+                        }
+                        // Wait to avoid repeated detections of the same card
+                        basic.pause(500);
+                    }
+                    basic.pause(100);
+                }
+            });
         }
     }
 }
